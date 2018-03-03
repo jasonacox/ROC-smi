@@ -316,9 +316,22 @@ def writeToSysfs(fsFile, fsValue):
 
 
 def listDevices():
-    """ Return a list of GPU devices."""
-    devicelist = [device for device in os.listdir(drmprefix) if re.match(r'^card\d+$', device)]
-    return devicelist
+    """ Return a list of GPU devices.
+
+        Revised: Restrict list to AMD devices only and return sorted.
+    """
+    
+    devicelist = []
+    deviceraw = [device for device in os.listdir(drmprefix) if re.match(r'^card\d+$', device)]
+    for devicename in deviceraw:
+        tempname = os.path.join(drmprefix, devicename, 'device/uevent')
+        with open(tempname, 'r') as tempdetail:
+           cardtype = tempdetail.readline().rstrip('\n')
+           # print("GPU Found: %s - %s" % (devicename, cardtype))
+           if cardtype in ['DRIVER=radeon', 'DRIVER=amdgpu']:
+              devicelist.append(devicename)
+
+    return sorted(devicelist)
 
 
 def listAmdHwMons():
@@ -355,8 +368,14 @@ def getFanSpeed(device):
     device -- Device to return the current fan speed
     """
 
-    fanLevel = int(getSysfsValue(device, 'fan'))
-    fanMax = int(getSysfsValue(device, 'fanmax'))
+    fanLevel=0 
+    fanMax=1 
+    rfanLevel = getSysfsValue(device, 'fan')
+    rfanMax = getSysfsValue(device, 'fanmax')
+    if(type(rfanLevel) is str): 
+        fanLevel = int(rfanLevel)
+    if(type(rfanMax) is str): 
+        fanMax = int(rfanMax)
     return round((fanLevel / fanMax) * 100, 2)
 
 
@@ -734,7 +753,7 @@ def showAllConcise(deviceList):
         perf = getSysfsValue(device, 'perf')
 
         od = getSysfsValue(device, 'sclk_od')
-        if od == '-1':
+        if od == '-1' or type(od) is not str:
             od = 'N/A'
         else:
             od = od + '%'
